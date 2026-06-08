@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fastest 1000 m Ascent Finder</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+  >
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111827;
+      --panel-2: #020617;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #334155;
+      --route: #64748b;
+      --highlight: #ff7a18;
+      --good: #22c55e;
+      --bad: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255, 122, 24, 0.12), transparent 34rem),
+        var(--bg);
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 32px 0 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    main {
+      display: grid;
+      gap: 16px;
+      padding-bottom: 36px;
+    }
+
+    .card {
+      background: rgba(17, 24, 39, 0.88);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 16px 44px rgba(0, 0, 0, 0.25);
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      background: rgba(2, 6, 23, 0.65);
+      transition: 160ms ease;
+    }
+
+    .dropzone.dragover {
+      border-color: var(--highlight);
+      background: rgba(255, 122, 24, 0.12);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 180px 140px;
+      gap: 12px;
+      align-items: end;
+      margin-top: 14px;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+    }
+
+    input,
+    button {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 11px 12px;
+      font-size: 1rem;
+    }
+
+    input[type="file"] {
+      cursor: pointer;
+    }
+
+    button {
+      background: var(--highlight);
+      border-color: var(--highlight);
+      color: #111827;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .status {
+      min-height: 1.5em;
+      margin: 12px 0 0;
+    }
+
+    .status.ok {
+      color: #bbf7d0;
+    }
+
+    .status.err {
+      color: #fecaca;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      background: rgba(2, 6, 23, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      padding: 14px;
+      min-height: 86px;
+    }
+
+    .stat .k {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 8px;
+    }
+
+    .stat .v {
+      font-weight: 800;
+      font-size: 1.15rem;
+      overflow-wrap: anywhere;
+    }
+
+    #map {
+      height: min(68vh, 680px);
+      min-height: 430px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--panel-2);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 10px;
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 30px;
+      height: 5px;
+      border-radius: 99px;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    details {
+      color: var(--muted);
+    }
+
+    summary {
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    code {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 5px;
+    }
+
+    @media (max-width: 860px) {
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      #map {
+        min-height: 360px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .stats {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Fastest 1000 m Ascent Finder</h1>
+      <p>
+        Upload a GPX file to find the fastest segment where cumulative positive ascent reaches the target.
+        Descents do not subtract from ascent, but the elapsed time still counts.
+      </p>
+    </header>
+
+    <main>
+      <section class="card">
+        <div id="dropzone" class="dropzone">
+          <strong>Drop a GPX file here</strong>
+          <p>or choose one below. Everything runs locally in your browser.</p>
+        </div>
+
+        <div class="controls">
+          <div>
+            <label for="gpxFile">GPX file</label>
+            <input id="gpxFile" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+          </div>
+          <div>
+            <label for="targetGain">Target ascent, metres</label>
+            <input id="targetGain" type="number" min="1" step="1" value="1000">
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="analyzeBtn">Analyze</button>
+          </div>
+        </div>
+
+        <p id="status" class="status">Choose a GPX file to begin.</p>
+      </section>
+
+      <section class="stats" aria-live="polite">
+        <div class="stat">
+          <div class="k">Best duration</div>
+          <div id="durationStat" class="v">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">Cumulative ascent</div>
+          <div id="gainStat" class="v">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">Average VAM</div>
+          <div id="vamStat" class="v">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">Start time</div>
+          <div id="startStat" class="v">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">End time</div>
+          <div id="endStat" class="v">—</div>
+        </div>
+      </section>
+
+      <section>
+        <div id="map"></div>
+        <div class="legend">
+          <span><span class="swatch" style="background: var(--route);"></span>Full activity</span>
+          <span><span class="swatch" style="background: var(--highlight);"></span>Fastest ascent segment</span>
+          <span>Green marker = start</span>
+          <span>Red marker = end</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <details>
+          <summary>Calculation details</summary>
+          <p>
+            The tool computes cumulative ascent by adding only positive elevation changes between consecutive GPX points.
+            For example, <code>+800 m, -100 m, +200 m</code> counts as <code>1000 m</code> of ascent.
+          </p>
+          <p>
+            It then scans the activity with two pointers to find the shortest elapsed-time window where cumulative ascent increases
+            by at least the selected target.
+          </p>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("gpxFile");
+    const targetInput = document.getElementById("targetGain");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const dropzone = document.getElementById("dropzone");
+    const statusEl = document.getElementById("status");
+
+    const statEls = {
+      duration: document.getElementById("durationStat"),
+      gain: document.getElementById("gainStat"),
+      vam: document.getElementById("vamStat"),
+      start: document.getElementById("startStat"),
+      end: document.getElementById("endStat")
+    };
+
+    const map = L.map("map");
+    const markerLayer = L.layerGroup().addTo(map);
+    let fullRouteLayer = null;
+    let bestSegmentLayer = null;
+    let selectedFile = null;
+
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    map.setView([49.888, -119.496], 10);
+
+    fileInput.addEventListener("change", () => {
+      selectedFile = fileInput.files[0] || null;
+      if (selectedFile) analyze();
+    });
+
+    analyzeBtn.addEventListener("click", analyze);
+
+    ["dragenter", "dragover"].forEach(eventName => {
+      dropzone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(eventName => {
+      dropzone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropzone.classList.remove("dragover");
+      });
+    });
+
+    dropzone.addEventListener("drop", event => {
+      const file = event.dataTransfer.files[0];
+      if (!file) return;
+
+      selectedFile = file;
+      fileInput.value = "";
+      analyze();
+    });
+
+    function setStatus(message, kind = "") {
+      statusEl.textContent = message;
+      statusEl.className = "status " + kind;
+    }
+
+    function resetStats() {
+      Object.values(statEls).forEach(el => {
+        el.textContent = "—";
+        el.removeAttribute("title");
+      });
+    }
+
+    async function analyze() {
+      resetStats();
+
+      const file = selectedFile || fileInput.files[0];
+      if (!file) {
+        setStatus("Choose or drop a GPX file first.", "err");
+        return;
+      }
+
+      const target = Number(targetInput.value);
+      if (!Number.isFinite(target) || target <= 0) {
+        setStatus("Target ascent must be a positive number.", "err");
+        return;
+      }
+
+      analyzeBtn.disabled = true;
+      setStatus("Reading GPX...");
+
+      try {
+        const text = await file.text();
+        const points = parseGpx(text);
+
+        if (points.length < 2) {
+          throw new Error("No usable GPX trackpoints with latitude, longitude, elevation, and time were found.");
+        }
+
+        const result = findFastestAscent(points, target);
+        if (!result) {
+          drawRoute(points, null);
+          setStatus("No segment with " + target.toFixed(0) + " m cumulative ascent was found.", "err");
+          return;
+        }
+
+        drawRoute(points, result);
+        updateStats(result, target);
+
+        setStatus(
+          "Found fastest " + target.toFixed(0) + " m ascent in " + formatDuration(result.durationSeconds) + ".",
+          "ok"
+        );
+      } catch (error) {
+        console.error(error);
+        setStatus(error.message || String(error), "err");
+      } finally {
+        analyzeBtn.disabled = false;
+      }
+    }
+
+    function parseGpx(text) {
+      const xml = new DOMParser().parseFromString(text, "application/xml");
+
+      if (xml.querySelector("parsererror")) {
+        throw new Error("Could not parse the GPX XML.");
+      }
+
+      const trkpts = Array.from(xml.getElementsByTagName("trkpt"));
+      const points = [];
+
+      for (const trkpt of trkpts) {
+        const lat = Number(trkpt.getAttribute("lat"));
+        const lon = Number(trkpt.getAttribute("lon"));
+        const eleNode = childByName(trkpt, "ele");
+        const timeNode = childByName(trkpt, "time");
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) || !eleNode || !timeNode) {
+          continue;
+        }
+
+        const ele = Number(eleNode.textContent);
+        const time = new Date(timeNode.textContent.trim());
+
+        if (!Number.isFinite(ele) || Number.isNaN(time.getTime())) {
+          continue;
+        }
+
+        points.push({
+          lat,
+          lon,
+          ele,
+          time,
+          ascent: 0
+        });
+      }
+
+      points.sort((a, b) => a.time - b.time);
+
+      if (points.length > 0) {
+        let ascent = 0;
+        points[0].ascent = 0;
+
+        for (let i = 1; i < points.length; i++) {
+          ascent += Math.max(0, points[i].ele - points[i - 1].ele);
+          points[i].ascent = ascent;
+        }
+      }
+
+      return points;
+    }
+
+    function childByName(parent, localName) {
+      for (const child of parent.children) {
+        if (child.localName === localName) return child;
+      }
+      return null;
+    }
+
+    function findFastestAscent(points, target) {
+      let best = null;
+      let start = 0;
+
+      for (let end = 0; end < points.length; end++) {
+        while (start < end && points[end].ascent - points[start].ascent >= target) {
+          const durationSeconds = (points[end].time - points[start].time) / 1000;
+
+          if (durationSeconds > 0) {
+            const gain = points[end].ascent - points[start].ascent;
+            const candidate = {
+              startIndex: start,
+              endIndex: end,
+              startPoint: points[start],
+              endPoint: points[end],
+              durationSeconds,
+              gain,
+              vam: gain / durationSeconds * 3600
+            };
+
+            if (!best || candidate.durationSeconds < best.durationSeconds) {
+              best = candidate;
+            }
+          }
+
+          start++;
+        }
+      }
+
+      return best;
+    }
+
+    function drawRoute(points, result) {
+      if (fullRouteLayer) fullRouteLayer.remove();
+      if (bestSegmentLayer) bestSegmentLayer.remove();
+      markerLayer.clearLayers();
+
+      const latLngs = points.map(p => [p.lat, p.lon]);
+
+      fullRouteLayer = L.polyline(latLngs, {
+        color: "#64748b",
+        weight: 4,
+        opacity: 0.75
+      }).addTo(map);
+
+      if (result) {
+        const segmentLatLngs = points
+          .slice(result.startIndex, result.endIndex + 1)
+          .map(p => [p.lat, p.lon]);
+
+        bestSegmentLayer = L.polyline(segmentLatLngs, {
+          color: "#ff7a18",
+          weight: 8,
+          opacity: 1
+        }).addTo(map);
+
+        L.circleMarker([result.startPoint.lat, result.startPoint.lon], {
+          radius: 7,
+          color: "#22c55e",
+          weight: 3,
+          fillColor: "#22c55e",
+          fillOpacity: 0.95
+        })
+          .bindPopup("<strong>Best segment start</strong><br>" + pointPopup(result.startPoint))
+          .addTo(markerLayer);
+
+        L.circleMarker([result.endPoint.lat, result.endPoint.lon], {
+          radius: 7,
+          color: "#ef4444",
+          weight: 3,
+          fillColor: "#ef4444",
+          fillOpacity: 0.95
+        })
+          .bindPopup("<strong>Best segment end</strong><br>" + pointPopup(result.endPoint))
+          .addTo(markerLayer);
+
+        map.fitBounds(fullRouteLayer.getBounds(), { padding: [28, 28] });
+      } else {
+        map.fitBounds(fullRouteLayer.getBounds(), { padding: [28, 28] });
+      }
+    }
+
+    function updateStats(result, target) {
+      statEls.duration.textContent = formatDuration(result.durationSeconds);
+      statEls.duration.title = result.durationSeconds.toFixed(1) + " seconds";
+
+      statEls.gain.textContent = result.gain.toFixed(1) + " m";
+      statEls.gain.title = "Target: " + target.toFixed(1) + " m";
+
+      statEls.vam.textContent = result.vam.toFixed(0) + " m/h";
+      statEls.start.textContent = result.startPoint.time.toLocaleString();
+      statEls.end.textContent = result.endPoint.time.toLocaleString();
+    }
+
+    function pointPopup(point) {
+      return [
+        "Time: " + point.time.toLocaleString(),
+        "Elevation: " + point.ele.toFixed(1) + " m",
+        "Lat/Lon: " + point.lat.toFixed(6) + ", " + point.lon.toFixed(6)
+      ].join("<br>");
+    }
+
+    function formatDuration(seconds) {
+      const total = Math.round(seconds);
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+
+      if (h > 0) {
+        return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      }
+
+      return m + ":" + String(s).padStart(2, "0");
+    }
+  </script>
+</body>
+</html>
